@@ -204,18 +204,25 @@
     window.SpeechRecognition || window.webkitSpeechRecognition;
 
   // 認識結果にひらがな・カタカナ・長音記号 以外(＝ 漢字やアルファベットなど)が
-  // 混ざっていても、そのままでは絶対に表示しない。まず余計な文字を全部取り除き、
-  // 残ったかなを今のモードに合わせて変換する。
+  // 混ざっていても、そのままでは絶対に表示しない。まず「よくある単語」の辞書で
+  // 読みに直し、それでも残った漢字などは問答無用ですべて取り除く。
   function normalizeToKanaOnly(rawText, targetMode) {
-    const kanaOnly = rawText.replace(/[^ぁ-ゖァ-ヶー]/g, "");
+    const readable = convertKnownKanjiToKana(rawText);
+    const kanaOnly = readable.replace(/[^ぁ-ゖァ-ヶー]/g, "");
     return targetMode === "katakana"
       ? hiraganaToKatakana(kanaOnly)
       : katakanaToHiragana(kanaOnly);
   }
 
-  let recognition = null;
   if (SpeechRecognitionCtor) {
-    recognition = new SpeechRecognitionCtor();
+    setupNativeRecognition();
+  } else {
+    setupWhisperFallbackRecognition();
+  }
+
+  // Android Chrome / デスクトップ など、ブラウザ標準の音声認識が使える場合
+  function setupNativeRecognition() {
+    const recognition = new SpeechRecognitionCtor();
     recognition.lang = "ja-JP";
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
@@ -245,26 +252,134 @@
       isListening = false;
       micBtn.classList.remove("listening");
     };
-  } else {
-    micBtn.classList.add("unsupported");
+
+    micBtn.addEventListener("click", () => {
+      if (isListening) {
+        recognition.stop();
+        return;
+      }
+      window.speechSynthesis.cancel();
+      try {
+        recognition.start();
+      } catch (err) {
+        // すでに開始中などのエラーは静かに無視する
+      }
+    });
   }
 
-  micBtn.addEventListener("click", () => {
-    if (!recognition) {
-      showStatus("ごめんね、この きかいでは こえの にゅうりょくが できないよ");
+  // iPhone Safari など、ブラウザ標準の音声認識が無い場合の代わり。
+  // ブラウザの中だけで動く音声認識モデル(Whisper)を、必要になった
+  // タイミングで初めて読み込む。
+  const RECORD_MAX_MS = 8000;
+
+  function setupWhisperFallbackRecognition() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      micBtn.classList.add("unsupported");
+      micBtn.addEventListener("click", () => {
+        showStatus("ごめんね、この きかいでは こえの にゅうりょくが できないよ");
+      });
       return;
     }
-    if (isListening) {
-      recognition.stop();
-      return;
+
+    let transcriberPromise = null;
+    let mediaRecorder = null;
+    let recordedChunks = [];
+    let autoStopTimer = null;
+
+    function loadTranscriber() {
+      if (!transcriberPromise) {
+        showStatus("じゅんびしているよ…（はじめての ときだけ）", 0);
+        transcriberPromise = import(
+          "https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2"
+        ).then(({ pipeline, env }) => {
+          env.allowLocalModels = false;
+          return pipeline("automatic-speech-recognition", "Xenova/whisper-tiny");
+        });
+      }
+      return transcriberPromise;
     }
-    window.speechSynthesis.cancel();
-    try {
-      recognition.start();
-    } catch (err) {
-      // すでに開始中などのエラーは静かに無視する
+
+    async function decodeToWhisperInput(blob) {
+      const arrayBuffer = await blob.arrayBuffer();
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+      const offlineCtx = new OfflineAudioContext(1, decoded.duration * 16000, 16000);
+      const source = offlineCtx.createBufferSource();
+      source.buffer = decoded;
+      source.connect(offlineCtx.destination);
+      source.start();
+      const resampled = await offlineCtx.startRendering();
+      audioCtx.close();
+      return resampled.getChannelData(0);
     }
-  });
+
+    async function startRecording() {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordedChunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) recordedChunks.push(e.data);
+      };
+      mediaRecorder.onstop = () => {
+        stream.getTracks().forEach((track) => track.stop());
+        handleRecordingStopped();
+      };
+      mediaRecorder.start();
+      isListening = true;
+      micBtn.classList.add("listening");
+      showStatus("きいているよ…", 0);
+      autoStopTimer = setTimeout(() => stopRecording(), RECORD_MAX_MS);
+    }
+
+    function stopRecording() {
+      clearTimeout(autoStopTimer);
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {
+        mediaRecorder.stop();
+      }
+      isListening = false;
+      micBtn.classList.remove("listening");
+    }
+
+    async function handleRecordingStopped() {
+      if (recordedChunks.length === 0) return;
+      showStatus("かんがえているよ…", 0);
+      try {
+        // Safari は webm ではなく mp4/aac などで録音するため、実際に
+        // 使われた形式(mediaRecorder.mimeType)をそのまま使う。
+        const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
+        const [transcriber, audioData] = await Promise.all([
+          loadTranscriber(),
+          decodeToWhisperInput(blob),
+        ]);
+        const output = await transcriber(audioData, {
+          language: "japanese",
+          task: "transcribe",
+        });
+        const safe = normalizeToKanaOnly(output.text || "", mode);
+        if (safe) {
+          textDisplay.value += safe;
+          showStatus("にゅうりょく できたよ！");
+        } else {
+          showStatus("もういちど はなしてみてね");
+        }
+      } catch (err) {
+        showStatus("うまく きこえなかったよ、もういちど どうぞ");
+      }
+    }
+
+    micBtn.addEventListener("click", async () => {
+      if (isListening) {
+        stopRecording();
+        return;
+      }
+      window.speechSynthesis.cancel();
+      try {
+        await startRecording();
+      } catch (err) {
+        showStatus("マイクを つかう じゅんびが できなかったよ");
+      }
+    });
+  }
 
   // ---------- 初期化 ----------
   renderKanaTable();
