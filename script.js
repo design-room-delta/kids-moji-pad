@@ -207,7 +207,12 @@
   // 混ざっていても、そのままでは絶対に表示しない。まず「よくある単語」の辞書で
   // 読みに直し、それでも残った漢字などは問答無用ですべて取り除く。
   function normalizeToKanaOnly(rawText, targetMode) {
-    const readable = convertKnownKanjiToKana(rawText);
+    // kanji-readings.js が何らかの理由で読み込めていなくても、
+    // かな以外を取り除く安全フィルタ自体は必ず動くようにしておく。
+    const readable =
+      typeof convertKnownKanjiToKana === "function"
+        ? convertKnownKanjiToKana(rawText)
+        : rawText;
     const kanaOnly = readable.replace(/[^ぁ-ゖァ-ヶー]/g, "");
     return targetMode === "katakana"
       ? hiraganaToKatakana(kanaOnly)
@@ -234,13 +239,17 @@
     };
 
     recognition.onresult = (event) => {
-      const raw = event.results[0][0].transcript;
-      const safe = normalizeToKanaOnly(raw, mode);
-      if (safe) {
-        textDisplay.value += safe;
-        showStatus("にゅうりょく できたよ！");
-      } else {
-        showStatus("もういちど はなしてみてね");
+      try {
+        const raw = event.results[0][0].transcript;
+        const safe = normalizeToKanaOnly(raw, mode);
+        if (safe) {
+          textDisplay.value += safe;
+          showStatus("にゅうりょく できたよ！");
+        } else {
+          showStatus("もういちど はなしてみてね");
+        }
+      } catch (err) {
+        showStatus("うまく きこえなかったよ、もういちど どうぞ");
       }
     };
 
