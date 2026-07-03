@@ -219,7 +219,18 @@
       : katakanaToHiragana(kanaOnly);
   }
 
-  if (SpeechRecognitionCtor) {
+  // iOS は Safari も Chrome も中身は WebKit で、標準の音声認識APIが
+  // 「存在はするが実際には反応しない」ことが多い。デスクトップ Safari も同様。
+  // これらでは API の有無に関わらず、確実に動く Whisper フォールバックを使う。
+  const ua = navigator.userAgent;
+  const isIOSDevice =
+    /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const isDesktopSafari =
+    !isIOSDevice && /^((?!chrome|android|crios|fxios|edg).)*safari/i.test(ua);
+  const isUnreliableWebKit = isIOSDevice || isDesktopSafari;
+
+  if (SpeechRecognitionCtor && !isUnreliableWebKit) {
     setupNativeRecognition();
   } else {
     setupWhisperFallbackRecognition();
@@ -232,10 +243,34 @@
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
+    // ブラウザによっては start() したまま onresult/onerror/onend が
+    // 一切発火しないことがある。そのまま「きいているよ」が残り続けて
+    // 二度とマイクが使えなくなるのを防ぐための保険タイマー。
+    let watchdogTimer = null;
+    function clearWatchdog() {
+      clearTimeout(watchdogTimer);
+      watchdogTimer = null;
+    }
+    function resetListeningState() {
+      clearWatchdog();
+      isListening = false;
+      micBtn.classList.remove("listening");
+    }
+
     recognition.onstart = () => {
       isListening = true;
       micBtn.classList.add("listening");
       showStatus("きいているよ…", 0);
+      clearWatchdog();
+      watchdogTimer = setTimeout(() => {
+        try {
+          recognition.abort();
+        } catch (err) {
+          // 無視
+        }
+        resetListeningState();
+        showStatus("うまく きこえなかったよ、もういちど どうぞ");
+      }, 10000);
     };
 
     recognition.onresult = (event) => {
@@ -253,18 +288,29 @@
       }
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
+      console.warn("SpeechRecognition error:", event.error);
       showStatus("うまく きこえなかったよ、もういちど どうぞ");
     };
 
     recognition.onend = () => {
-      isListening = false;
-      micBtn.classList.remove("listening");
+      resetListeningState();
     };
 
     micBtn.addEventListener("click", () => {
       if (isListening) {
-        recognition.stop();
+        try {
+          recognition.stop();
+        } catch (err) {
+          // 無視
+        }
+        // stop() しても onend が来ない端末向けの保険。
+        setTimeout(() => {
+          if (isListening) {
+            resetListeningState();
+            showStatus("");
+          }
+        }, 1500);
         return;
       }
       window.speechSynthesis.cancel();
@@ -349,6 +395,16 @@
       micBtn.classList.remove("listening");
     }
 
+    const TRANSCRIBE_TIMEOUT_MS = 20000;
+    function withTimeout(promise, ms) {
+      return Promise.race([
+        promise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("timeout")), ms)
+        ),
+      ]);
+    }
+
     async function handleRecordingStopped() {
       if (recordedChunks.length === 0) return;
       showStatus("かんがえているよ…", 0);
@@ -356,14 +412,14 @@
         // Safari は webm ではなく mp4/aac などで録音するため、実際に
         // 使われた形式(mediaRecorder.mimeType)をそのまま使う。
         const blob = new Blob(recordedChunks, { type: mediaRecorder.mimeType });
-        const [transcriber, audioData] = await Promise.all([
-          loadTranscriber(),
-          decodeToWhisperInput(blob),
-        ]);
-        const output = await transcriber(audioData, {
-          language: "japanese",
-          task: "transcribe",
-        });
+        const [transcriber, audioData] = await withTimeout(
+          Promise.all([loadTranscriber(), decodeToWhisperInput(blob)]),
+          TRANSCRIBE_TIMEOUT_MS
+        );
+        const output = await withTimeout(
+          transcriber(audioData, { language: "japanese", task: "transcribe" }),
+          TRANSCRIBE_TIMEOUT_MS
+        );
         const safe = normalizeToKanaOnly(output.text || "", mode);
         if (safe) {
           textDisplay.value += safe;
@@ -372,6 +428,7 @@
           showStatus("もういちど はなしてみてね");
         }
       } catch (err) {
+        console.warn("Whisper transcription failed:", err);
         showStatus("うまく きこえなかったよ、もういちど どうぞ");
       }
     }
