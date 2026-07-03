@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>おしゃべりもじぱっど</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8E%A4%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <h1 class="title">おしゃべりもじぱっど</h1>
+
+    <!-- 上部：入力欄と操作ボタン -->
+    <section class="input-area">
+      <textarea id="textDisplay" class="text-display" readonly placeholder="もじを　おしてみてね"></textarea>
+      <div class="input-buttons">
+        <button id="deleteBtn" class="ctrl-btn delete-btn" aria-label="さいごの もじを けす">
+          <span class="ctrl-icon">×</span>
+          <span class="ctrl-label">けす</span>
+        </button>
+        <button id="playBtn" class="ctrl-btn play-btn" aria-label="よみあげる">
+          <span class="ctrl-icon">🔊</span>
+          <span class="ctrl-label">よむ</span>
+        </button>
+        <button id="micBtn" class="ctrl-btn mic-btn" aria-label="こえで にゅうりょく">
+          <span class="ctrl-icon">🎤</span>
+          <span class="ctrl-label">はなす</span>
+        </button>
+      </div>
+      <div id="statusBar" class="status-bar" aria-live="polite"></div>
+    </section>
+
+    <!-- 切替ボタン -->
+    <section class="mode-area">
+      <button id="modeToggle" class="mode-toggle">
+        <span class="mode-toggle-track">
+          <span class="mode-toggle-option" data-mode="hiragana">ひらがな</span>
+          <span class="mode-toggle-option" data-mode="katakana">カタカナ</span>
+          <span class="mode-toggle-thumb"></span>
+        </span>
+      </button>
+    </section>
+
+    <!-- 中央：もじ表 -->
+    <main id="kanaTable" class="kana-table"></main>
+
+    <footer class="hint">
+      もじを　おすと　こえが　でるよ
+    </footer>
+  </div>
+
+  <script src="kana-data.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

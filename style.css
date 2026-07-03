@@ -1,0 +1,323 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  --gap: clamp(6px, 1.6vw, 12px);
+  --bg: #fff8e7;
+  --ink: #4a3f35;
+  --accent: #ff8fa3;
+  --accent-dark: #ef5f7a;
+  --accent-blue: #5aa9e6;
+  --accent-green: #6bcf8f;
+  --panel: #ffffff;
+  --border: #f0d9a8;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--bg);
+  font-family: "Hiragino Maru Gothic ProN", "UD Digi Kyokasho N-R", "Rounded Mplus 1c",
+    "Yu Gothic", system-ui, sans-serif;
+  color: var(--ink);
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: contain;
+}
+
+button {
+  touch-action: manipulation;
+  user-select: none;
+  font-family: inherit;
+  border: none;
+  cursor: pointer;
+}
+
+.app {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: clamp(12px, 3vw, 24px);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 2.5vw, 20px);
+}
+
+.title {
+  text-align: center;
+  font-size: clamp(1.6rem, 5vw, 2.4rem);
+  color: var(--accent-dark);
+  margin: 4px 0 0;
+  text-shadow: 2px 2px 0 #fff;
+}
+
+/* ---------- 入力エリア ---------- */
+.input-area {
+  background: var(--panel);
+  border: 3px solid var(--border);
+  border-radius: 24px;
+  padding: clamp(10px, 2.5vw, 18px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.text-display {
+  width: 100%;
+  min-height: clamp(72px, 14vw, 110px);
+  font-size: clamp(1.6rem, 6vw, 2.6rem);
+  line-height: 1.4;
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 10px 14px;
+  resize: none;
+  background: #fffdf6;
+  color: var(--ink);
+  letter-spacing: 0.08em;
+}
+
+.text-display:focus {
+  outline: 3px solid var(--accent-blue);
+}
+
+.input-buttons {
+  display: flex;
+  gap: var(--gap);
+}
+
+.ctrl-btn {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: clamp(6px, 1.4vw, 10px) 4px;
+  border-radius: 14px;
+  font-weight: 700;
+  font-size: clamp(0.65rem, 1.7vw, 0.8rem);
+  color: #fff;
+  transition: transform 0.12s ease, filter 0.12s ease;
+  box-shadow: 0 3px 0 rgba(0, 0, 0, 0.15);
+}
+
+.ctrl-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.15);
+}
+
+.ctrl-icon {
+  font-size: clamp(1.1rem, 3vw, 1.5rem);
+}
+
+.delete-btn {
+  background: #ffb4b4;
+  position: relative;
+  overflow: hidden;
+}
+.delete-btn.holding::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.55);
+  transform-origin: left;
+  animation: fillHold 0.7s linear forwards;
+}
+
+.play-btn {
+  background: var(--accent-blue);
+}
+.play-btn.speaking {
+  animation: pulse 0.9s ease-in-out infinite;
+}
+
+.mic-btn {
+  background: var(--accent-green);
+}
+.mic-btn.listening {
+  animation: pulse 0.8s ease-in-out infinite;
+  background: #ff7a7a;
+}
+.mic-btn.unsupported {
+  opacity: 0.5;
+}
+
+.status-bar {
+  min-height: 1.4em;
+  text-align: center;
+  font-size: clamp(0.9rem, 2.4vw, 1.05rem);
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+/* ---------- 切り替えボタン ---------- */
+.mode-area {
+  display: flex;
+  justify-content: center;
+}
+
+.mode-toggle {
+  background: none;
+  padding: 0;
+}
+
+.mode-toggle-track {
+  position: relative;
+  display: flex;
+  width: clamp(220px, 60vw, 300px);
+  background: #fff;
+  border: 3px solid var(--border);
+  border-radius: 999px;
+  padding: 4px;
+}
+
+.mode-toggle-option {
+  flex: 1;
+  text-align: center;
+  padding: 10px 0;
+  font-weight: 700;
+  font-size: clamp(0.95rem, 2.6vw, 1.1rem);
+  z-index: 1;
+  color: var(--ink);
+  transition: color 0.2s ease;
+}
+
+.mode-toggle-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  height: calc(100% - 8px);
+  background: var(--accent);
+  border-radius: 999px;
+  transition: transform 0.25s ease, background 0.25s ease;
+}
+
+.mode-toggle.katakana-mode .mode-toggle-thumb {
+  transform: translateX(100%);
+  background: var(--accent-blue);
+}
+
+.mode-toggle.katakana-mode .mode-toggle-option[data-mode="katakana"],
+.mode-toggle:not(.katakana-mode) .mode-toggle-option[data-mode="hiragana"] {
+  color: #fff;
+}
+
+/* ---------- もじ表 ---------- */
+.kana-table {
+  background: var(--panel);
+  border: 3px solid var(--border);
+  border-radius: 24px;
+  padding: clamp(12px, 3vw, 22px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.group-heading {
+  font-size: clamp(0.95rem, 2.6vw, 1.15rem);
+  color: var(--accent-dark);
+  margin: 10px 0 0;
+  text-align: center;
+}
+.group-heading:first-child {
+  margin-top: 0;
+}
+
+.kana-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--gap);
+}
+
+.kana-btn {
+  flex: 0 0 calc((100% - 4 * var(--gap)) / 5);
+  aspect-ratio: 1 / 0.85;
+  min-height: 44px;
+  background: #fff;
+  border: 3px solid var(--row-color, var(--accent));
+  border-radius: 16px;
+  font-size: clamp(1.3rem, 5.5vw, 2.1rem);
+  font-weight: 700;
+  color: var(--ink);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.kana-btn:active,
+.kana-btn.tapped {
+  transform: scale(0.9);
+  background: var(--row-color, var(--accent));
+  color: #fff;
+}
+
+.row-pink {
+  --row-color: #ff8fa3;
+}
+.row-orange {
+  --row-color: #ffb26b;
+}
+.row-yellow {
+  --row-color: #f4d35e;
+}
+.row-green {
+  --row-color: #6bcf8f;
+}
+.row-blue {
+  --row-color: #5aa9e6;
+}
+.row-purple {
+  --row-color: #b28dff;
+}
+
+.hint {
+  text-align: center;
+  color: #b3a58f;
+  font-size: clamp(0.85rem, 2.2vw, 1rem);
+  padding-bottom: 8px;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes fillHold {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* ---------- パーティクル（花火）エフェクト ---------- */
+.particle {
+  position: fixed;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 999;
+  will-change: transform, opacity;
+  animation: particle-burst 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes particle-burst {
+  0% {
+    transform: translate(var(--start-x), var(--start-y)) translate(-50%, -50%)
+      scale(0.6);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(var(--start-x) + var(--dx)), calc(var(--start-y) + var(--dy)))
+      translate(-50%, -50%) scale(1.1);
+    opacity: 0;
+  }
+}
