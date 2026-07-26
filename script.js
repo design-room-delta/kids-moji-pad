@@ -165,8 +165,14 @@
   });
 
   // ---------- 読み上げ (発音・全文) ----------
+  // 読み上げの「世代」。新しい読み上げが始まったり、途中で別の発音が
+  // 割り込んだ時に、古い読み上げループを止めるための目印。
+  let speechGeneration = 0;
+
   function speakText(text, { rate = 0.8 } = {}) {
     if (!text || !("speechSynthesis" in window)) return;
+    speechGeneration += 1; // 進行中の全文読み上げがあれば止める
+    resetReadAloudUI();
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "ja-JP";
@@ -174,6 +180,43 @@
     utterance.pitch = 1.05;
     window.speechSynthesis.speak(utterance);
   }
+
+  function resetReadAloudUI() {
+    isSpeaking = false;
+    playBtn.classList.remove("speaking");
+    hideHighlight();
+  }
+
+  // 「きゃ」「って」のような拗音・促音がバラバラに読まれて不自然に
+  // ならないよう、小さい文字・長音符・促音は前後の文字とまとめて
+  // ひとかたまり(＝ひと呼吸)として扱う。
+  const SMALL_KANA = new Set([
+    "ゃ", "ゅ", "ょ", "ぁ", "ぃ", "ぅ", "ぇ", "ぉ", "ー",
+    "ャ", "ュ", "ョ", "ァ", "ィ", "ゥ", "ェ", "ォ",
+  ]);
+  const SOKUON = new Set(["っ", "ッ"]);
+
+  function splitIntoSpeechUnits(chars) {
+    const units = [];
+    let i = 0;
+    while (i < chars.length) {
+      const start = i;
+      const unitChars = [chars[i]];
+      i += 1;
+      if (SOKUON.has(chars[start]) && i < chars.length) {
+        unitChars.push(chars[i]);
+        i += 1;
+      }
+      while (i < chars.length && SMALL_KANA.has(chars[i])) {
+        unitChars.push(chars[i]);
+        i += 1;
+      }
+      units.push({ text: unitChars.join(""), start, end: i });
+    }
+    return units;
+  }
+
+  const BEAT_PAUSE_MS = 220;
 
   playBtn.addEventListener("click", () => {
     const text = currentText;
@@ -185,30 +228,43 @@
       showStatus("ごめんね、この きかいでは よみあげが できないよ");
       return;
     }
+
+    speechGeneration += 1;
+    const myGeneration = speechGeneration;
+    window.speechSynthesis.cancel();
+
     isSpeaking = true;
     playBtn.classList.add("speaking");
     showStatus("よんでいるよ…", 0);
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = "ja-JP";
-    utterance.rate = 0.75;
-    utterance.pitch = 1.05;
-    // 読み上げに合わせて、今しゃべっている文字の上にマーカーを動かす。
-    // (ブラウザによっては境界イベントが来ないこともあるが、その場合は
-    // マーカーが動かないだけで読み上げ自体は問題なく続く)
-    utterance.onboundary = (event) => {
-      const start = event.charIndex;
-      const len = event.charLength && event.charLength > 0 ? event.charLength : 1;
-      moveHighlightTo(start, start + len);
-    };
-    utterance.onend = utterance.onerror = () => {
-      isSpeaking = false;
-      playBtn.classList.remove("speaking");
-      showStatus("");
-      hideHighlight();
-    };
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
+    const units = splitIntoSpeechUnits([...text]);
+    let unitIndex = 0;
+
+    function speakNextUnit() {
+      if (myGeneration !== speechGeneration) return; // 何かに割り込まれた
+      if (unitIndex >= units.length) {
+        isSpeaking = false;
+        playBtn.classList.remove("speaking");
+        showStatus("");
+        hideHighlight();
+        return;
+      }
+      const unit = units[unitIndex];
+      moveHighlightTo(unit.start, unit.end);
+
+      const utterance = new SpeechSynthesisUtterance(unit.text);
+      utterance.lang = "ja-JP";
+      utterance.rate = 0.75;
+      utterance.pitch = 1.05;
+      utterance.onend = utterance.onerror = () => {
+        if (myGeneration !== speechGeneration) return;
+        unitIndex += 1;
+        setTimeout(speakNextUnit, BEAT_PAUSE_MS);
+      };
+      window.speechSynthesis.speak(utterance);
+    }
+
+    speakNextUnit();
   });
 
   // ---------- 削除ボタン（タップ＝1文字 / 長押し＝全部） ----------
