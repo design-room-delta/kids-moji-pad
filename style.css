@@ -76,7 +76,7 @@ button {
   letter-spacing: 0.08em;
 }
 
-.text-display:has(.text-chars:empty)::before {
+.text-display.is-empty::before {
   content: attr(data-placeholder);
   color: #cbb98a;
 }

@@ -24,6 +24,7 @@
       span.textContent = ch;
       textChars.appendChild(span);
     });
+    textDisplay.classList.toggle("is-empty", currentText.length === 0);
     hideHighlight();
   }
 
