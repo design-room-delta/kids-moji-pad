@@ -1,5 +1,7 @@
 (() => {
   const textDisplay = document.getElementById("textDisplay");
+  const textChars = document.getElementById("textChars");
+  const highlightMarker = document.getElementById("highlightMarker");
   const deleteBtn = document.getElementById("deleteBtn");
   const playBtn = document.getElementById("playBtn");
   const micBtn = document.getElementById("micBtn");
@@ -10,6 +12,57 @@
   let mode = "hiragana"; // "hiragana" | "katakana"
   let isSpeaking = false;
   let isListening = false;
+
+  // ---------- 入力テキストの表示（1文字ずつ span にして持つ） ----------
+  let currentText = "";
+
+  function renderTextDisplay() {
+    textChars.innerHTML = "";
+    [...currentText].forEach((ch) => {
+      const span = document.createElement("span");
+      span.className = "char";
+      span.textContent = ch;
+      textChars.appendChild(span);
+    });
+    hideHighlight();
+  }
+
+  function appendText(str) {
+    currentText += str;
+    renderTextDisplay();
+  }
+
+  function setText(str) {
+    currentText = str;
+    renderTextDisplay();
+  }
+
+  // 読み上げ中の文字にあわせて、マーカーの四角を移動させる。
+  // 文字の色そのものは一切変えず、四角を mix-blend-mode で重ねるだけ。
+  function moveHighlightTo(startIndex, endIndex) {
+    const spans = textChars.querySelectorAll(".char");
+    const startSpan = spans[startIndex];
+    const endSpan = spans[Math.max(startIndex, endIndex - 1)];
+    if (!startSpan || !endSpan) {
+      hideHighlight();
+      return;
+    }
+    const containerRect = textDisplay.getBoundingClientRect();
+    const startRect = startSpan.getBoundingClientRect();
+    const endRect = endSpan.getBoundingClientRect();
+    const left = startRect.left - containerRect.left + textDisplay.scrollLeft;
+    const top = startRect.top - containerRect.top + textDisplay.scrollTop;
+    const width = endRect.right - startRect.left;
+    const height = Math.max(startRect.height, endRect.height);
+    highlightMarker.style.transform = `translate(${left}px, ${top}px)`;
+    highlightMarker.style.width = `${width}px`;
+    highlightMarker.style.height = `${height}px`;
+    highlightMarker.classList.add("show");
+  }
+
+  function hideHighlight() {
+    highlightMarker.classList.remove("show");
+  }
 
   // ---------- ステータス表示 ----------
   let statusTimer = null;
@@ -64,7 +117,7 @@
   }
 
   function handleKanaTap(char, btnEl) {
-    textDisplay.value += char;
+    appendText(char);
     btnEl.classList.add("tapped");
     setTimeout(() => btnEl.classList.remove("tapped"), 220);
     speakText(char, { rate: 0.75 });
@@ -123,7 +176,7 @@
   }
 
   playBtn.addEventListener("click", () => {
-    const text = textDisplay.value;
+    const text = currentText;
     if (!text) {
       showStatus("なにか もじを えらんでね");
       return;
@@ -140,10 +193,19 @@
     utterance.lang = "ja-JP";
     utterance.rate = 0.75;
     utterance.pitch = 1.05;
+    // 読み上げに合わせて、今しゃべっている文字の上にマーカーを動かす。
+    // (ブラウザによっては境界イベントが来ないこともあるが、その場合は
+    // マーカーが動かないだけで読み上げ自体は問題なく続く)
+    utterance.onboundary = (event) => {
+      const start = event.charIndex;
+      const len = event.charLength && event.charLength > 0 ? event.charLength : 1;
+      moveHighlightTo(start, start + len);
+    };
     utterance.onend = utterance.onerror = () => {
       isSpeaking = false;
       playBtn.classList.remove("speaking");
       showStatus("");
+      hideHighlight();
     };
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
@@ -155,12 +217,12 @@
   let didLongPress = false;
 
   function deleteLastChar() {
-    if (!textDisplay.value) return;
-    textDisplay.value = [...textDisplay.value].slice(0, -1).join("");
+    if (!currentText) return;
+    setText([...currentText].slice(0, -1).join(""));
   }
 
   function clearAll() {
-    textDisplay.value = "";
+    setText("");
     showStatus("ぜんぶ けしたよ");
 
     const rect = textDisplay.getBoundingClientRect();
@@ -278,7 +340,7 @@
         const raw = event.results[0][0].transcript;
         const safe = normalizeToKanaOnly(raw, mode);
         if (safe) {
-          textDisplay.value += safe;
+          appendText(safe);
           showStatus("にゅうりょく できたよ！");
         } else {
           showStatus("もういちど はなしてみてね");
@@ -422,7 +484,7 @@
         );
         const safe = normalizeToKanaOnly(output.text || "", mode);
         if (safe) {
-          textDisplay.value += safe;
+          appendText(safe);
           showStatus("にゅうりょく できたよ！");
         } else {
           showStatus("もういちど はなしてみてね");

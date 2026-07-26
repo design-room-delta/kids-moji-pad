@@ -33,7 +33,10 @@
 
     <!-- 上部：入力欄と操作ボタン -->
     <section class="input-area">
-      <textarea id="textDisplay" class="text-display" readonly placeholder="もじを　おしてみてね"></textarea>
+      <div id="textDisplay" class="text-display" data-placeholder="もじを　おしてみてね">
+        <span id="textChars" class="text-chars"></span>
+        <span id="highlightMarker" class="highlight-marker" aria-hidden="true"></span>
+      </div>
       <div class="input-buttons">
         <button id="deleteBtn" class="ctrl-btn delete-btn" aria-label="さいごの もじを けす">
           <span class="ctrl-icon">×</span>

@@ -63,6 +63,7 @@ button {
 }
 
 .text-display {
+  position: relative;
   width: 100%;
   min-height: clamp(72px, 14vw, 110px);
   font-size: clamp(1.6rem, 6vw, 2.6rem);
@@ -70,14 +71,45 @@ button {
   border: 2px dashed var(--border);
   border-radius: 16px;
   padding: 10px 14px;
-  resize: none;
   background: #fffdf6;
   color: var(--ink);
   letter-spacing: 0.08em;
 }
 
-.text-display:focus {
-  outline: 3px solid var(--accent-blue);
+.text-display:has(.text-chars:empty)::before {
+  content: attr(data-placeholder);
+  color: #cbb98a;
+}
+
+.text-chars {
+  position: relative;
+  z-index: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.text-chars .char {
+  display: inline-block;
+}
+
+.highlight-marker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  z-index: 2;
+  border-radius: 6px;
+  background: #ffd23f;
+  mix-blend-mode: multiply;
+  opacity: 0;
+  pointer-events: none;
+  transition: transform 0.15s ease, width 0.15s ease, height 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.highlight-marker.show {
+  opacity: 0.85;
 }
 
 .input-buttons {
