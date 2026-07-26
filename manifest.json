@@ -1,0 +1,22 @@
+{
+  "name": "おしゃべりもじぱっど",
+  "short_name": "もじぱっど",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#fff8e7",
+  "theme_color": "#ff8fa3",
+  "icons": [
+    {
+      "src": "img/mojipad_icon_192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "img/mojipad_icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
