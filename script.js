@@ -447,6 +447,41 @@
     });
   }
 
+  // ---------- 起動時のスプラッシュ演出 ----------
+  function playSplash() {
+    const splash = document.getElementById("splash");
+    const splashIcon = splash ? splash.querySelector(".splash-icon") : null;
+    if (!splash || !splashIcon) return;
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+    if (reduceMotion) {
+      splash.remove();
+      return;
+    }
+
+    let finished = false;
+    function finishSplash() {
+      if (finished) return;
+      finished = true;
+      splash.classList.add("hide");
+      setTimeout(() => splash.remove(), 400);
+    }
+
+    // 待ちきれない子のために、タップしたらすぐ本編へ
+    splash.addEventListener("click", finishSplash, { once: true });
+
+    const rect = splash.getBoundingClientRect();
+    burstParticles(rect.left + rect.width / 2, rect.top + rect.height / 2, {
+      count: 28,
+      distance: 140,
+    });
+    setTimeout(() => splashIcon.classList.add("show"), 150);
+    setTimeout(finishSplash, 1500);
+  }
+
   // ---------- 初期化 ----------
   renderKanaTable();
+  playSplash();
 })();
